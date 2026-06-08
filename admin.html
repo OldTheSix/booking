@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>后台管理 - 农庄预约</title>
+<script>
+(function(){
+  var pwd = prompt('请输入管理密码：');
+  if (pwd !== '5233420') {
+    alert('密码错误！');
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-size:18px;color:#999;">访问被拒绝</div>';
+    throw new Error('access denied');
+  }
+})();
+</script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -188,9 +198,7 @@ function openServiceModal(svcId) {
     document.getElementById('svcDesc').value = svc.desc || '';
     document.getElementById('svcPrice').value = svc.price || 0;
     document.getElementById('svcUnit').value = svc.unit || '';
-    // 渲染已有图片
     renderSvcImgThumbs(svc.images || []);
-    // 渲染菜单分类
     if (svc.menuCategories) {
       svc.menuCategories.forEach(function(cat, ci) { addMenuCategoryFromData(cat, ci); });
     }
@@ -250,12 +258,20 @@ function addMenuCategoryFromData(cat, idx) {
   html += '  </div>';
   html += '  <div class="cat-items" style="padding-left:8px;">';
   (cat.items || []).forEach(function(item, ii) {
+    var imgVal = item.image || '';
     html += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">';
     html += '  <input type="text" value="' + (item.name || '') + '" placeholder="菜品名" style="width:80px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
     html += '  <input type="text" value="' + (item.desc || '') + '" placeholder="描述" style="width:80px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
     html += '  <input type="number" value="' + (item.price || 0) + '" placeholder="价格" style="width:60px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
     html += '  <select style="padding:4px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;"><option value="dish"' + (item.mode === 'dish' ? ' selected' : '') + '>按桌</option><option value="per_person"' + (item.mode === 'per_person' ? ' selected' : '') + '>按人</option><option value="per_unit"' + (item.mode === 'per_unit' ? ' selected' : '') + '>按次</option></select>';
     html += '  <input type="text" value="' + (item.unit || '') + '" placeholder="单位" style="width:50px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
+    // 菜品图片上传
+    html += '  <div class="dish-img-upload" style="position:relative;width:36px;height:36px;border:1px dashed #ccc;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;flex-shrink:0;" onclick="this.nextElementSibling.click()">';
+    html += '    <span style="font-size:16px;color:#bbb;">＋</span>';
+    html += '    <img src="' + imgVal + '" style="display:' + (imgVal ? 'block' : 'none') + ';width:100%;height:100%;object-fit:cover;border-radius:6px;" class="dish-item-img-preview">';
+    html += '  </div>';
+    html += '  <input type="file" accept="image/*" style="display:none;" onchange="uploadDishItemImg(this)">';
+    html += '  <input type="hidden" class="dish-item-img" value="' + imgVal + '">';
     html += '  <button class="btn-sm btn-sm-del" onclick="this.parentElement.remove()">×</button>';
     html += '</div>';
   });
@@ -276,9 +292,32 @@ function addMenuItem(btn) {
   html += '  <input type="number" placeholder="价格" style="width:60px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
   html += '  <select style="padding:4px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;"><option value="dish">按桌</option><option value="per_person">按人</option><option value="per_unit">按次</option></select>';
   html += '  <input type="text" placeholder="单位" style="width:50px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
+  // 菜品图片上传
+  html += '  <div class="dish-img-upload" style="position:relative;width:36px;height:36px;border:1px dashed #ccc;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;flex-shrink:0;" onclick="this.nextElementSibling.click()">';
+  html += '    <span style="font-size:16px;color:#bbb;">＋</span>';
+  html += '    <img style="display:none;width:100%;height:100%;object-fit:cover;border-radius:6px;" class="dish-item-img-preview">';
+  html += '  </div>';
+  html += '  <input type="file" accept="image/*" style="display:none;" onchange="uploadDishItemImg(this)">';
+  html += '  <input type="hidden" class="dish-item-img" value="">';
   html += '  <button class="btn-sm btn-sm-del" onclick="this.parentElement.remove()">×</button>';
   html += '</div>';
   catDiv.insertAdjacentHTML('beforeend', html);
+}
+
+// ============ 菜品图片上传 ============
+function uploadDishItemImg(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var wrap = input.previousElementSibling;
+  var preview = wrap.querySelector('.dish-item-img-preview');
+  var hiddenInput = input.nextElementSibling;
+  compressImage(file, 400, 0.6).then(function(base64) {
+    preview.src = base64;
+    preview.style.display = 'block';
+    wrap.querySelector('span').style.display = 'none';
+    hiddenInput.value = base64;
+  }).catch(function() {});
+  input.value = '';
 }
 
 // ============ 保存服务 ============
@@ -289,7 +328,6 @@ function saveService() {
   var isEdit = !!document.getElementById('editServiceId').value;
   var svcId = isEdit ? document.getElementById('editServiceId').value : (name === '钓鱼' ? 'fishing' : name === '午餐' ? 'lunch' : name === '晚餐' ? 'dinner' : name === '团建' ? 'team' : ('svc_' + Date.now()));
 
-  // 从 _editingSvc 或新建一个对象
   var svc;
   if (isEdit) {
     svc = services.find(function(s) { return s.id === svcId; }) || {};
@@ -303,7 +341,6 @@ function saveService() {
   svc.price = parseFloat(document.getElementById('svcPrice').value) || 0;
   svc.unit = document.getElementById('svcUnit').value;
 
-  // 保存图片（如果是编辑模式，保留 _editingSvc.images）
   if (_editingSvc && _editingSvc.images) svc.images = _editingSvc.images;
 
   // 保存菜单分类
@@ -325,17 +362,16 @@ function saveService() {
         desc: inputs[1] ? inputs[1].value.trim() : '',
         price: parseFloat(inputs[2] ? inputs[2].value : 0) || 0,
         mode: selects[0] ? selects[0].value : 'dish',
-        unit: inputs[3] ? inputs[3].value.trim() : ''
+        unit: inputs[3] ? inputs[3].value.trim() : '',
+        image: div.querySelector('.dish-item-img') ? div.querySelector('.dish-item-img').value : ''
       });
     });
     svc.menuCategories.push({ name: catName, items: items });
   }
 
-  // 更新折扣规则中的 applyTo 选项
   saveServices(services);
   closeServiceModal();
   renderAdminServices();
-  // 刷新折扣规则里的服务选项
   refreshDiscountServiceOptions();
 }
 
@@ -430,7 +466,7 @@ function renderDiscounts() {
     html += '      <button class="btn-sm btn-sm-edit" onclick="editDiscount(\'' + r.id + '\')">编辑</button>';
     html += '      <button class="btn-sm btn-sm-del" onclick="deleteDiscount(\'' + r.id + '\')">删除</button>';
     html += '    </div>';
-    html += '  </div>';
+    html += '</div>';
     html += '</div>';
   });
   document.getElementById('discountList').innerHTML = html;
@@ -499,12 +535,10 @@ function showMobileMenu() {
     '</div>';
 }
 
-// 检测手机端并显示提示
 (function(){
   var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (isMobile) {
     document.getElementById('mobileTip').style.display = 'block';
-    // 隐藏 tab 栏，用下拉菜单替代
     var tabs = document.querySelector('.admin-tabs');
     if (tabs) tabs.style.display = 'none';
   }
