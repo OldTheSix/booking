@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>后台管理 - 农庄预约</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- 导航栏 -->
+<nav class="navbar">
+  <button class="nav-btn" onclick="location.href='index.html'" style="background:transparent;font-size:20px;padding:4px 8px;color:#fff;border:none;cursor:pointer;">‹ 返回</button>
+  <div class="nav-title">后台管理</div>
+  <div class="nav-right"></div>
+</nav>
+
+<!-- 手机管理提示 -->
+<div id="mobileTip" style="display:none;background:#e6f7ff;color:#1890ff;padding:10px 16px;font-size:13px;border-radius:0 0 12px 12px;">
+  📱 已适配手机管理 · <a href="javascript:;" onclick="showMobileMenu()" style="color:#1890ff;text-decoration:underline;">切换功能</a>
+</div>
+
+<!-- Header -->
+<div class="admin-header" style="margin-top:56px;">
+  <h2>农庄预约 · 后台管理</h2>
+  <p>管理服务、查看预约、设置折扣</p>
+</div>
+
+<!-- 标签栏 -->
+<div class="admin-tabs">
+  <div class="admin-tab active" data-tab="services-tab" onclick="switchTab('services-tab',this)">服务管理</div>
+  <div class="admin-tab" data-tab="bookings-tab" onclick="switchTab('bookings-tab',this)">预约记录</div>
+  <div class="admin-tab" data-tab="discount-tab" onclick="switchTab('discount-tab',this)">折扣规则</div>
+</div>
+
+<div class="container" style="padding-top:16px;">
+
+  <!-- 服务管理 -->
+  <div id="services-tab">
+    <button class="btn-primary" style="margin-bottom:16px;" onclick="openServiceModal()">＋ 添加服务</button>
+    <div id="adminServiceList"></div>
+  </div>
+
+  <!-- 预约记录 -->
+  <div id="bookings-tab" style="display:none;">
+    <div id="adminBookingList"></div>
+  </div>
+
+  <!-- 折扣规则 -->
+  <div id="discount-tab" style="display:none;">
+    <button class="btn-primary" style="margin-bottom:16px;" onclick="openDiscountModal()">＋ 添加折扣规则</button>
+    <div id="discountList"></div>
+  </div>
+
+</div>
+
+<!-- 服务编辑弹窗 -->
+<div class="modal-mask" id="serviceModal" style="display:none;">
+  <div class="modal-box" style="max-height:85vh;overflow-y:auto;">
+    <div class="modal-title" id="serviceModalTitle">添加服务</div>
+    <input type="hidden" id="editServiceId" value="">
+    <div class="form-group">
+      <label class="required">服务名称</label>
+      <input type="text" id="svcName" placeholder="如：午餐">
+    </div>
+    <div class="form-group">
+      <label class="required">图标（Emoji）</label>
+      <input type="text" id="svcIcon" placeholder="如：🍱">
+    </div>
+    <div class="form-group">
+      <label>描述</label>
+      <input type="text" id="svcDesc" placeholder="简短描述">
+    </div>
+    <div class="form-group">
+      <label>价格（0=价格面议）</label>
+      <input type="number" id="svcPrice" value="0" min="0">
+    </div>
+    <div class="form-group">
+      <label>单位</label>
+      <input type="text" id="svcUnit" placeholder="如：人、桌、小时">
+    </div>
+    <!-- 场地图片 -->
+    <div class="form-group">
+      <label>场地图片（上传后压缩存储）</label>
+      <div class="img-upload-area" id="svcImgUpload" onclick="document.getElementById('svcImgInput').click()">
+        <span class="img-upload-add">＋</span>
+      </div>
+      <input type="file" id="svcImgInput" accept="image/*" multiple style="display:none;" onchange="uploadSvcImages(event)">
+    </div>
+    <!-- 菜单分类 -->
+    <div class="form-group">
+      <label>菜单分类（午餐/晚餐/团建需设置）</label>
+      <div id="menuCategoriesEdit"></div>
+      <button class="btn-outline" style="margin-top:8px;" onclick="addMenuCategory()">＋ 添加分类</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeServiceModal()">取消</button>
+      <button class="btn-primary" onclick="saveService()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 折扣规则弹窗 -->
+<div class="modal-mask" id="discountModal" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-title">添加折扣规则</div>
+    <input type="hidden" id="editDiscountId" value="">
+    <div class="form-group">
+      <label class="required">最低消费金额（元）</label>
+      <input type="number" id="discMinAmount" value="0" min="0" placeholder="0=不限">
+    </div>
+    <div class="form-group">
+      <label class="required">折扣（%）</label>
+      <input type="number" id="discPercent" value="90" min="1" max="100" placeholder="90=9折">
+      <small style="color:#999;">90=9折，80=8折，100=无折扣</small>
+    </div>
+    <div class="form-group">
+      <label>适用服务（留空=全部）</label>
+      <select id="discApplyTo" style="width:100%;padding:8px 12px;border:1px solid #e0e0e0;border-radius:8px;">
+        <option value="">全部服务</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" id="discEnabled" checked> 启用
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeDiscountModal()">取消</button>
+      <button class="btn-primary" onclick="saveDiscount()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script>
+// ============ Tab 切换 ============
+function switchTab(tabId, el) {
+  document.querySelectorAll('.admin-tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  document.getElementById('services-tab').style.display = 'none';
+  document.getElementById('bookings-tab').style.display = 'none';
+  document.getElementById('discount-tab').style.display = 'none';
+  document.getElementById(tabId).style.display = 'block';
+  if (tabId === 'bookings-tab') renderBookings();
+  if (tabId === 'discount-tab') renderDiscounts();
+}
+
+// ============ 服务列表 ============
+function renderAdminServices() {
+  var services = getServices();
+  var html = '';
+  services.forEach(function(svc) {
+    html += '<div class="admin-service-card">';
+    html += '  <h4>' + (svc.icon || '') + ' ' + svc.name + '</h4>';
+    html += '  <p>' + (svc.desc || '') + (svc.price > 0 ? ' | ¥' + svc.price + '/' + (svc.unit || '') : ' | 价格面议') + '</p>';
+    html += '  <div style="font-size:12px;color:#999;margin-bottom:8px;">' + (svc.images && svc.images.length > 0 ? svc.images.length + '张场地图片 | ' : '') + (svc.menuCategories && svc.menuCategories.length > 0 ? svc.menuCategories.length + '个菜单分类' : '') + '</div>';
+    html += '  <div class="admin-service-actions">';
+    html += '    <button class="btn-sm btn-sm-edit" onclick="editService(\'' + svc.id + '\')">编辑</button>';
+    html += '    <button class="btn-sm btn-sm-del" onclick="deleteService(\'' + svc.id + '\')">删除</button>';
+    html += '  </div>';
+    html += '</div>';
+  });
+  document.getElementById('adminServiceList').innerHTML = html || '<p style="text-align:center;color:#999;padding:40px 0;">暂无服务</p>';
+}
+
+// ============ 服务编辑弹窗 ============
+var _editingSvc = null;
+
+function openServiceModal(svcId) {
+  document.getElementById('serviceModalTitle').textContent = svcId ? '编辑服务' : '添加服务';
+  document.getElementById('editServiceId').value = svcId || '';
+  document.getElementById('svcName').value = '';
+  document.getElementById('svcIcon').value = '';
+  document.getElementById('svcDesc').value = '';
+  document.getElementById('svcPrice').value = '0';
+  document.getElementById('svcUnit').value = '';
+  document.getElementById('svcImgUpload').innerHTML = '<span class="img-upload-add">＋</span>';
+  document.getElementById('menuCategoriesEdit').innerHTML = '';
+  _editingSvc = null;
+
+  if (svcId) {
+    var svc = getServiceById(svcId);
+    if (!svc) return;
+    _editingSvc = JSON.parse(JSON.stringify(svc));
+    document.getElementById('svcName').value = svc.name;
+    document.getElementById('svcIcon').value = svc.icon || '';
+    document.getElementById('svcDesc').value = svc.desc || '';
+    document.getElementById('svcPrice').value = svc.price || 0;
+    document.getElementById('svcUnit').value = svc.unit || '';
+    // 渲染已有图片
+    renderSvcImgThumbs(svc.images || []);
+    // 渲染菜单分类
+    if (svc.menuCategories) {
+      svc.menuCategories.forEach(function(cat, ci) { addMenuCategoryFromData(cat, ci); });
+    }
+  } else {
+    _editingSvc = { id: '', name: '', icon: '', desc: '', price: 0, unit: '', images: [], menuCategories: [] };
+  }
+  document.getElementById('serviceModal').style.display = 'flex';
+}
+
+function closeServiceModal() { document.getElementById('serviceModal').style.display = 'none'; }
+
+function renderSvcImgThumbs(images) {
+  var wrap = document.getElementById('svcImgUpload');
+  var html = '';
+  (images || []).forEach(function(url, i) {
+    html += '<div class="img-thumb-wrap">';
+    html += '  <img class="img-thumb" src="' + url + '">';
+    html += '  <button class="img-thumb-del" onclick="removeSvcImg(' + i + ')">×</button>';
+    html += '</div>';
+  });
+  html += '<span class="img-upload-add">＋</span>';
+  wrap.innerHTML = html;
+}
+
+function removeSvcImg(idx) {
+  if (!_editingSvc) return;
+  _editingSvc.images.splice(idx, 1);
+  renderSvcImgThumbs(_editingSvc.images);
+}
+
+function uploadSvcImages(e) {
+  var files = e.target.files;
+  if (!files || files.length === 0) return;
+  var remaining = files.length;
+  for (var i = 0; i < files.length; i++) {
+    (function(file) {
+      compressImage(file, 800, 0.6).then(function(base64) {
+        if (!_editingSvc) return;
+        if (!_editingSvc.images) _editingSvc.images = [];
+        _editingSvc.images.push(base64);
+        remaining--;
+        if (remaining <= 0) renderSvcImgThumbs(_editingSvc.images);
+      }).catch(function() { remaining--; });
+    })(files[i]);
+  }
+  e.target.value = '';
+}
+
+// ============ 菜单分类编辑 ============
+function addMenuCategoryFromData(cat, idx) {
+  var wrap = document.getElementById('menuCategoriesEdit');
+  var catIdx = wrap.children.length;
+  var html = '<div class="admin-service-card" style="margin-bottom:8px;padding:12px;" data-cat-idx="' + catIdx + '">';
+  html += '  <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">';
+  html += '    <input type="text" value="' + (cat.name || '') + '" placeholder="分类名称" style="flex:1;padding:6px 10px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;">';
+  html += '    <button class="btn-sm btn-sm-del" onclick="this.parentElement.parentElement.remove()">删除分类</button>';
+  html += '  </div>';
+  html += '  <div class="cat-items" style="padding-left:8px;">';
+  (cat.items || []).forEach(function(item, ii) {
+    html += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">';
+    html += '  <input type="text" value="' + (item.name || '') + '" placeholder="菜品名" style="width:80px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
+    html += '  <input type="text" value="' + (item.desc || '') + '" placeholder="描述" style="width:80px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
+    html += '  <input type="number" value="' + (item.price || 0) + '" placeholder="价格" style="width:60px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
+    html += '  <select style="padding:4px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;"><option value="dish"' + (item.mode === 'dish' ? ' selected' : '') + '>按桌</option><option value="per_person"' + (item.mode === 'per_person' ? ' selected' : '') + '>按人</option><option value="per_unit"' + (item.mode === 'per_unit' ? ' selected' : '') + '>按次</option></select>';
+    html += '  <input type="text" value="' + (item.unit || '') + '" placeholder="单位" style="width:50px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
+    html += '  <button class="btn-sm btn-sm-del" onclick="this.parentElement.remove()">×</button>';
+    html += '</div>';
+  });
+  html += '  <button class="btn-sm btn-sm-edit" style="font-size:12px;padding:4px 10px;" onclick="addMenuItem(this)">＋ 添加菜品</button>';
+  html += '</div></div>';
+  wrap.insertAdjacentHTML('beforeend', html);
+}
+
+function addMenuCategory() {
+  addMenuCategoryFromData({ name: '', items: [] }, 0);
+}
+
+function addMenuItem(btn) {
+  var catDiv = btn.parentElement;
+  var html = '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">';
+  html += '  <input type="text" placeholder="菜品名" style="width:80px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
+  html += '  <input type="text" placeholder="描述" style="width:80px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
+  html += '  <input type="number" placeholder="价格" style="width:60px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
+  html += '  <select style="padding:4px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;"><option value="dish">按桌</option><option value="per_person">按人</option><option value="per_unit">按次</option></select>';
+  html += '  <input type="text" placeholder="单位" style="width:50px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">';
+  html += '  <button class="btn-sm btn-sm-del" onclick="this.parentElement.remove()">×</button>';
+  html += '</div>';
+  catDiv.insertAdjacentHTML('beforeend', html);
+}
+
+// ============ 保存服务 ============
+function saveService() {
+  var name = document.getElementById('svcName').value.trim();
+  if (!name) { alert('请填写服务名称'); return; }
+  var services = getServices();
+  var isEdit = !!document.getElementById('editServiceId').value;
+  var svcId = isEdit ? document.getElementById('editServiceId').value : (name === '钓鱼' ? 'fishing' : name === '午餐' ? 'lunch' : name === '晚餐' ? 'dinner' : name === '团建' ? 'team' : ('svc_' + Date.now()));
+
+  // 从 _editingSvc 或新建一个对象
+  var svc;
+  if (isEdit) {
+    svc = services.find(function(s) { return s.id === svcId; }) || {};
+  } else {
+    svc = { id: svcId, images: [], menuCategories: [] };
+    services.push(svc);
+  }
+  svc.name = name;
+  svc.icon = document.getElementById('svcIcon').value || '📌';
+  svc.desc = document.getElementById('svcDesc').value;
+  svc.price = parseFloat(document.getElementById('svcPrice').value) || 0;
+  svc.unit = document.getElementById('svcUnit').value;
+
+  // 保存图片（如果是编辑模式，保留 _editingSvc.images）
+  if (_editingSvc && _editingSvc.images) svc.images = _editingSvc.images;
+
+  // 保存菜单分类
+  svc.menuCategories = [];
+  var catDivs = document.getElementById('menuCategoriesEdit').children;
+  for (var ci = 0; ci < catDivs.length; ci++) {
+    var catDiv = catDivs[ci];
+    var catName = catDiv.querySelector('input[type=text]').value.trim();
+    if (!catName) continue;
+    var items = [];
+    var itemDivs = catDiv.querySelectorAll('.cat-items > div');
+    itemDivs.forEach(function(div) {
+      var inputs = div.querySelectorAll('input');
+      var selects = div.querySelectorAll('select');
+      var itemName = inputs[0] ? inputs[0].value.trim() : '';
+      if (!itemName) return;
+      items.push({
+        name: itemName,
+        desc: inputs[1] ? inputs[1].value.trim() : '',
+        price: parseFloat(inputs[2] ? inputs[2].value : 0) || 0,
+        mode: selects[0] ? selects[0].value : 'dish',
+        unit: inputs[3] ? inputs[3].value.trim() : ''
+      });
+    });
+    svc.menuCategories.push({ name: catName, items: items });
+  }
+
+  // 更新折扣规则中的 applyTo 选项
+  saveServices(services);
+  closeServiceModal();
+  renderAdminServices();
+  // 刷新折扣规则里的服务选项
+  refreshDiscountServiceOptions();
+}
+
+function deleteService(id) {
+  if (!confirm('确定删除该服务？')) return;
+  var services = getServices();
+  services = services.filter(function(s) { return s.id !== id; });
+  saveServices(services);
+  renderAdminServices();
+}
+
+function editService(id) { openServiceModal(id); }
+
+// ============ 预约记录 ============
+function renderBookings() {
+  var bookings = getBookings();
+  var html = '';
+  if (bookings.length === 0) {
+    html = '<p style="text-align:center;color:#999;padding:40px 0;">暂无预约记录</p>';
+  }
+  bookings.forEach(function(bk) {
+    var statusCls = '';
+    if (bk.status === '待付款') statusCls = 'status-待付款';
+    else if (bk.status === '已付款') statusCls = 'status-已付款';
+    else if (bk.status === '已取消') statusCls = 'status-已取消';
+    else if (bk.status === '已完成') statusCls = 'status-已完成';
+    html += '<div class="booking-card">';
+    html += '  <div class="bk-header">';
+    html += '    <span class="bk-id">' + bk.id + ' · ' + (bk.date || '') + '</span>';
+    html += '    <span class="bk-status ' + statusCls + '">' + (bk.status || '待付款') + '</span>';
+    html += '  </div>';
+    html += '  <div class="bk-detail">';
+    html += '    <div>服务：' + (bk.serviceNames || []).join('、') + '</div>';
+    if (bk.peopleCount) html += '    <div>人数：' + bk.peopleCount + '人</div>';
+    if (bk.bookerName) html += '    <div>预约人：' + bk.bookerName + '</div>';
+    html += '    <div>金额：<strong style="color:#ff6b6b;">' + (bk.priceNote || ('¥' + bk.totalPrice)) + '</strong></div>';
+    html += '    <div style="font-size:11px;color:#bbb;margin-top:4px;">创建：' + formatDateTime(bk.createTime) + '</div>';
+    html += '  </div>';
+    html += '  <div class="bk-actions">';
+    if (bk.status === '待付款') {
+      html += '    <button class="btn-sm btn-sm-edit" onclick="updateBkStatus(\'' + bk.id + '\',\'已付款\')">标记已付款</button>';
+      html += '    <button class="btn-sm btn-sm-del" onclick="updateBkStatus(\'' + bk.id + '\',\'已取消\')">取消预约</button>';
+    }
+    if (bk.status === '已付款') {
+      html += '    <button class="btn-sm btn-sm-edit" onclick="updateBkStatus(\'' + bk.id + '\',\'已完成\')">标记已完成</button>';
+    }
+    html += '    <button class="btn-sm btn-sm-del" onclick="deleteBk(\'' + bk.id + '\')">删除记录</button>';
+    html += '  </div>';
+    html += '</div>';
+  });
+  document.getElementById('adminBookingList').innerHTML = html;
+}
+
+function updateBkStatus(id, status) {
+  if (!confirm('确认标记为「' + status + '」？')) return;
+  updateBookingStatus(id, status);
+  renderBookings();
+}
+
+function deleteBk(id) {
+  if (!confirm('确认删除该预约记录？')) return;
+  deleteBooking(id);
+  renderBookings();
+}
+
+// ============ 折扣规则 ============
+function refreshDiscountServiceOptions() {
+  var sel = document.getElementById('discApplyTo');
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">全部服务</option>';
+  getServices().forEach(function(s) {
+    sel.innerHTML += '<option value="' + s.id + '">' + s.name + '</option>';
+  });
+  sel.value = cur;
+}
+
+function renderDiscounts() {
+  var rules = getDiscountRules();
+  var html = '';
+  if (rules.length === 0) {
+    html = '<p style="text-align:center;color:#999;padding:40px 0;">暂无折扣规则</p>';
+  }
+  rules.forEach(function(r) {
+    var svcName = r.applyTo ? (getServiceById(r.applyTo) || {}).name || r.applyTo : '全部服务';
+    html += '<div class="admin-service-card">';
+    html += '  <div style="display:flex;justify-content:space-between;align-items:center;">';
+    html += '    <div>';
+    html += '      <h4>' + (r.percent / 10) + '折' + (r.minAmount > 0 ? '（满¥' + r.minAmount + '）' : '（不限金额）') + '</h4>';
+    html += '      <p style="font-size:13px;color:#999;">适用：' + svcName + ' | ' + (r.enabled !== false ? '✅ 已启用' : '❌ 已禁用') + '</p>';
+    html += '    </div>';
+    html += '    <div class="admin-service-actions">';
+    html += '      <button class="btn-sm btn-sm-edit" onclick="editDiscount(\'' + r.id + '\')">编辑</button>';
+    html += '      <button class="btn-sm btn-sm-del" onclick="deleteDiscount(\'' + r.id + '\')">删除</button>';
+    html += '    </div>';
+    html += '  </div>';
+    html += '</div>';
+  });
+  document.getElementById('discountList').innerHTML = html;
+}
+
+function openDiscountModal(ruleId) {
+  document.getElementById('editDiscountId').value = ruleId || '';
+  document.getElementById('discMinAmount').value = '0';
+  document.getElementById('discPercent').value = '90';
+  document.getElementById('discApplyTo').value = '';
+  document.getElementById('discEnabled').checked = true;
+  if (ruleId) {
+    var rule = getDiscountRules().find(function(r) { return r.id === ruleId; });
+    if (rule) {
+      document.getElementById('discMinAmount').value = rule.minAmount || 0;
+      document.getElementById('discPercent').value = rule.percent || 90;
+      document.getElementById('discApplyTo').value = rule.applyTo || '';
+      document.getElementById('discEnabled').checked = rule.enabled !== false;
+    }
+  }
+  document.getElementById('discountModal').style.display = 'flex';
+}
+
+function closeDiscountModal() { document.getElementById('discountModal').style.display = 'none'; }
+
+function saveDiscount() {
+  var minAmount = parseFloat(document.getElementById('discMinAmount').value) || 0;
+  var percent = parseInt(document.getElementById('discPercent').value) || 100;
+  var applyTo = document.getElementById('discApplyTo').value || '';
+  var enabled = document.getElementById('discEnabled').checked;
+  var rules = getDiscountRules();
+  var editId = document.getElementById('editDiscountId').value;
+  if (editId) {
+    var rule = rules.find(function(r) { return r.id === editId; });
+    if (rule) {
+      rule.minAmount = minAmount;
+      rule.percent = percent;
+      rule.applyTo = applyTo;
+      rule.enabled = enabled;
+    }
+  } else {
+    rules.push({ id: 'disc_' + Date.now(), minAmount: minAmount, percent: percent, applyTo: applyTo, enabled: enabled });
+  }
+  saveDiscountRules(rules);
+  closeDiscountModal();
+  renderDiscounts();
+}
+
+function editDiscount(id) { openDiscountModal(id); }
+
+function deleteDiscount(id) {
+  if (!confirm('确认删除该折扣规则？')) return;
+  var rules = getDiscountRules().filter(function(r) { return r.id !== id; });
+  saveDiscountRules(rules);
+  renderDiscounts();
+}
+
+// ============ 手机管理菜单 ============
+function showMobileMenu() {
+  var tip = document.getElementById('mobileTip');
+  tip.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+    '<a href="javascript:switchTab(\'services-tab\',document.querySelector(\'[data-tab=services-tab]\'));tip.style.display=\'none\';" style="background:#fff;color:#1890ff;padding:6px 12px;border-radius:6px;font-size:13px;text-decoration:none;">服务管理</a>' +
+    '<a href="javascript:switchTab(\'bookings-tab\',document.querySelector(\'[data-tab=bookings-tab]\'));tip.style.display=\'none\';" style="background:#fff;color:#1890ff;padding:6px 12px;border-radius:6px;font-size:13px;text-decoration:none;">预约记录</a>' +
+    '<a href="javascript:switchTab(\'discount-tab\',document.querySelector(\'[data-tab=discount-tab]\'));tip.style.display=\'none\';" style="background:#fff;color:#1890ff;padding:6px 12px;border-radius:6px;font-size:13px;text-decoration:none;">折扣规则</a>' +
+    '<a href="javascript:tip.style.display=\'none\';" style="background:#fff;color:#999;padding:6px 12px;border-radius:6px;font-size:13px;text-decoration:none;">收起</a>' +
+    '</div>';
+}
+
+// 检测手机端并显示提示
+(function(){
+  var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile) {
+    document.getElementById('mobileTip').style.display = 'block';
+    // 隐藏 tab 栏，用下拉菜单替代
+    var tabs = document.querySelector('.admin-tabs');
+    if (tabs) tabs.style.display = 'none';
+  }
+})();
+
+// ============ 初始化 ============
+refreshDiscountServiceOptions();
+renderAdminServices();
+</script>
+</body>
+</html>
