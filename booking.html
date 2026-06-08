@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>立即预约 - 农庄预约</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- 导航栏 -->
+<nav class="navbar">
+  <button class="nav-btn" onclick="history.back()" style="background:transparent;font-size:20px;padding:4px 8px;color:#fff;border:none;cursor:pointer;">‹ 返回</button>
+  <div class="nav-title">立即预约</div>
+  <div class="nav-right"></div>
+</nav>
+
+<div class="container" style="margin-top:56px;">
+
+  <!-- 日期选择 -->
+  <div class="calendar-card">
+    <div class="section-title">选择日期</div>
+    <div class="month-nav">
+      <button class="month-btn" onclick="prevMonth()">‹</button>
+      <div class="month-text" id="monthText"></div>
+      <button class="month-btn" onclick="nextMonth()">›</button>
+    </div>
+    <div class="week-row">
+      <div class="week-cell">日</div>
+      <div class="week-cell">一</div>
+      <div class="week-cell">二</div>
+      <div class="week-cell">三</div>
+      <div class="week-cell">四</div>
+      <div class="week-cell">五</div>
+      <div class="week-cell">六</div>
+    </div>
+    <div class="days-grid" id="daysGrid"></div>
+    <div id="selectedDateText" style="margin-top:10px;font-size:14px;color:#1aad19;font-weight:600;"></div>
+  </div>
+
+  <!-- 服务多选 -->
+  <div class="calendar-card">
+    <div class="section-title">选择服务（可多选）</div>
+    <div id="serviceOptions"></div>
+  </div>
+
+  <!-- 场地图片（选了对应服务时显示） -->
+  <div class="calendar-card" id="fishingImgCard" style="display:none;">
+    <div class="section-title" id="fishingImgTitle">场地图片</div>
+    <div id="fishingImgList" style="display:flex;gap:10px;overflow-x:auto;padding:4px 0 8px 0;"></div>
+  </div>
+
+  <!-- 菜单展示（非钓鱼服务） -->
+  <div class="calendar-card" id="menuCard" style="display:none;">
+    <div id="menuContent"></div>
+  </div>
+
+  <!-- 预约信息 -->
+  <div class="calendar-card">
+    <div class="section-title">预约信息</div>
+    <div class="form-group" id="fishingPeopleGroup" style="display:none;">
+      <label class="required" style="color:#fa8c16;">🎣 钓鱼/团建人数</label>
+      <div class="stepper">
+        <button class="stepper-btn" onclick="changePeople(-1)">−</button>
+        <input class="stepper-input" type="text" id="peopleCount" value="1" readonly>
+        <button class="stepper-btn" onclick="changePeople(1)">+</button>
+      </div>
+    </div>
+    <div class="form-group" id="bookerNameGroup" style="display:none;">
+      <label class="required">预约人</label>
+      <input type="text" id="bookerName" placeholder="请输入姓名" style="width:100%;padding:10px 12px;border:1px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none;">
+    </div>
+    <div id="priceDetail"></div>
+  </div>
+
+  <!-- 提交 -->
+  <button class="btn-primary" id="submitBtn" style="margin-top:8px;" onclick="onSubmit()">提交预约</button>
+  <!-- 分享按钮 -->
+  <button class="btn-secondary" id="shareBtn" style="margin-top:8px;width:100%;display:none;" onclick="shareBooking()">分享此预约链接给朋友</button>
+</div>
+
+<!-- 分享弹窗 -->
+<div id="shareBkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:90%;position:relative;">
+    <div style="font-size:17px;font-weight:700;margin-bottom:16px;">分享预约链接</div>
+    <div style="margin-bottom:12px;">
+      <div style="font-size:13px;color:#999;margin-bottom:6px;">复制链接发给朋友，他们打开可预约相同服务</div>
+      <input id="shareBkInput" type="text" style="width:100%;padding:10px 12px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;box-sizing:border-box;" readonly>
+    </div>
+    <button class="btn-primary" style="width:100%;margin-bottom:8px;" onclick="copyShareBk()">复制链接</button>
+    <button class="btn-secondary" style="width:100%;" onclick="document.getElementById('shareBkModal').style.display='none'">取消</button>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script>
+var state = {
+  year: new Date().getFullYear(),
+  month: new Date().getMonth() + 1,
+  selectedDate: '',
+  selectedServices: [],
+  selectedMenuItems: [],  // [{serviceId, itemIdx, name, price, mode, unit, qty}]
+  peopleCount: 1,
+  bookerName: '',
+  menuItemsFlat: [],   // 展平的所有可选菜品
+  isShared: false      // 是否来自分享链接
+};
+
+function init() {
+  buildCalendar();
+  renderServices();
+
+  // 解析 URL 参数（支持分享链接）
+  var params = new URLSearchParams(location.search);
+  var shareServices = params.get('services');
+  var isShare = params.get('share') === '1';
+
+  if (shareServices) {
+    var ids = shareServices.split(',');
+    // 只保留有效的服务 ID
+    var allSvcs = getServices();
+    var validIds = ids.filter(function(id) {
+      return allSvcs.some(function(s) { return s.id === id; });
+    });
+    if (validIds.length > 0) {
+      state.selectedServices = validIds;
+      state.isShared = isShare;
+      renderServices();
+      onServiceChange();
+      // 来自分享时提示
+      if (isShare) {
+        document.getElementById('shareBtn').style.display = 'block';
+        var note = document.createElement('div');
+        note.style.cssText = 'background:#e6f7e6;color:#52c41a;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;';
+        note.innerHTML = '📌 这是分享的预约链接，请选择日期并提交预约';
+        document.querySelector('.container').insertBefore(note, document.querySelector('.container').children[1]);
+      }
+    }
+  }
+
+  // 预选服务（兼容旧逻辑）
+  if (state.selectedServices.length === 0) {
+    var pre = localStorage.getItem('preSelectService');
+    if (pre) {
+      state.selectedServices = [pre];
+      localStorage.removeItem('preSelectService');
+      renderServices();
+      onServiceChange();
+    }
+  }
+  calcPrice();
+}
+
+// 分享当前预约配置
+function shareBooking() {
+  var base = location.origin + location.pathname;
+  var params = '?services=' + encodeURIComponent(state.selectedServices.join(',')) + '&share=1';
+  var url = base + params;
+  document.getElementById('shareBkInput').value = url;
+  document.getElementById('shareBkModal').style.display = 'flex';
+}
+function copyShareBk() {
+  var input = document.getElementById('shareBkInput');
+  input.select();
+  document.execCommand('copy');
+  alert('链接已复制！');
+}
+
+// ============ 日历 ============
+function buildCalendar() {
+  var year = state.year, month = state.month;
+  document.getElementById('monthText').textContent = year + '年' + month + '月';
+  var days = [];
+  var firstDay = new Date(year, month - 1, 1).getDay();
+  var daysInMonth = new Date(year, month, 0).getDate();
+  var now = new Date();
+  var maxDate = new Date(now.getFullYear() + 3, now.getMonth(), now.getDate());
+  for (var i = 0; i < firstDay; i++) days.push({ day: '', fullDate: '', disabled: true });
+  for (var d = 1; d <= daysInMonth; d++) {
+    var date = new Date(year, month - 1, d);
+    var mm = String(month).padStart(2, '0');
+    var dd = String(d).padStart(2, '0');
+    var fullDate = year + '-' + mm + '-' + dd;
+    var isToday = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+    var disabled = date < new Date(now.getFullYear(), now.getMonth(), now.getDate()) || date > maxDate;
+    days.push({ day: d, fullDate: fullDate, isToday: isToday, disabled: disabled });
+  }
+  var grid = document.getElementById('daysGrid');
+  var html = '';
+  days.forEach(function(day) {
+    var cls = 'day-cell';
+    if (day.disabled) cls += ' disabled';
+    if (day.isToday) cls += ' today';
+    if (day.fullDate === state.selectedDate) cls += ' selected';
+    html += '<div class="' + cls + '" ' + (day.fullDate && !day.disabled ? 'onclick="selectDate(\'' + day.fullDate + '\')"' : '') + '><span>' + (day.day || '') + '</span></div>';
+  });
+  grid.innerHTML = html;
+}
+
+function prevMonth() {
+  state.month--;
+  if (state.month < 1) { state.month = 12; state.year--; }
+  var now = new Date();
+  if (state.year < now.getFullYear() || (state.year === now.getFullYear() && state.month < now.getMonth() + 1)) { state.month = now.getMonth() + 1; state.year = now.getFullYear(); alert('不能选择更早的月份'); return; }
+  buildCalendar();
+}
+function nextMonth() {
+  state.month++;
+  if (state.month > 12) { state.month = 1; state.year++; }
+  var now = new Date();
+  if (state.year > now.getFullYear() + 3) { state.year = now.getFullYear() + 3; state.month = 12; alert('最多预约3年内'); return; }
+  buildCalendar();
+}
+function selectDate(date) { state.selectedDate = date; document.getElementById('selectedDateText').textContent = '已选：' + date; buildCalendar(); calcPrice(); }
+
+// ============ 服务多选 ============
+function renderServices() {
+  var services = getServices();
+  var html = '';
+  services.forEach(function(svc) {
+    var checked = state.selectedServices.indexOf(svc.id) > -1;
+    var cls = 'service-option' + (checked ? ' active' : '');
+    html += '<div class="' + cls + '" onclick="toggleService(\'' + svc.id + '\')">';
+    html += '  <div class="option-left">';
+    html += '    <div class="check-box ' + (checked ? 'checked' : '') + '"><span style="color:#fff;font-size:14px;' + (checked ? '' : 'display:none;') + '">✓</span></div>';
+    html += '    <span class="option-icon">' + (svc.icon || '') + '</span>';
+    html += '    <div class="option-info"><span class="option-name">' + svc.name + '</span><span class="option-desc">' + (svc.desc || '') + '</span></div>';
+    html += '  </div>';
+    html += '  <div class="option-right">' + (svc.price > 0 ? '¥' + svc.price + '/' + (svc.unit || '') : '查看详情') + '</div>';
+    html += '</div>';
+  });
+  document.getElementById('serviceOptions').innerHTML = html;
+}
+
+function toggleService(id) {
+  var idx = state.selectedServices.indexOf(id);
+  if (idx > -1) state.selectedServices.splice(idx, 1);
+  else state.selectedServices.push(id);
+  renderServices();
+  onServiceChange();
+}
+
+function onServiceChange() {
+  // 场地图片
+  var fishingImgs = [];
+  var fishingTitle = '';
+  state.selectedServices.forEach(function(sid) {
+    var svc = getServiceById(sid);
+    if (svc && svc.images && svc.images.length > 0) {
+      fishingImgs = fishingImgs.concat(svc.images);
+      if (!fishingTitle) fishingTitle = svc.name + ' · 场地图片';
+    }
+  });
+  var imgCard = document.getElementById('fishingImgCard');
+  if (fishingImgs.length > 0) {
+    imgCard.style.display = 'block';
+    document.getElementById('fishingImgTitle').textContent = fishingTitle || '场地图片';
+    var imgHtml = '';
+    fishingImgs.forEach(function(url) {
+      imgHtml += '<img src="' + url + '" style="width:160px;height:120px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:pointer;" onclick="previewImage(\'' + url.replace(/'/g, "\\'") + '\',' + JSON.stringify(fishingImgs).replace(/"/g, '&quot;') + ')">';
+    });
+    document.getElementById('fishingImgList').innerHTML = imgHtml;
+  } else {
+    imgCard.style.display = 'none';
+  }
+
+  // 菜单
+  buildMenuItems();
+  renderMenu();
+
+  // 人数
+  var showFishing = state.selectedServices.indexOf('fishing') > -1 || state.selectedServices.indexOf('team') > -1;
+  document.getElementById('fishingPeopleGroup').style.display = showFishing ? 'block' : 'none';
+  if (!showFishing) state.peopleCount = 0;
+  if (showFishing && state.peopleCount < 1) state.peopleCount = 1;
+  document.getElementById('peopleCount').value = state.peopleCount;
+
+  // 预约人
+  var hasNonFishing = state.selectedServices.some(function(sid) { return sid !== 'fishing'; });
+  document.getElementById('bookerNameGroup').style.display = hasNonFishing ? 'block' : 'none';
+
+  calcPrice();
+}
+
+// ============ 菜单 ============
+function buildMenuItems() {
+  var allServices = getServices();
+  var items = [];
+  state.selectedServices.forEach(function(sid) {
+    var svc = allServices.find(function(s) { return s.id === sid; });
+    if (!svc || !svc.menuCategories) return;
+    svc.menuCategories.forEach(function(cat, ci) {
+      (cat.items || []).forEach(function(item, ii) {
+        items.push({
+          svcName: svc.name,
+          svcId: sid,
+          catName: cat.name,
+          name: item.name,
+          desc: item.desc,
+          price: parseFloat(item.price) || 0,
+          image: item.image || '',
+          mode: item.mode || 'dish',
+          unit: item.unit || '',
+          qty: 1,
+          checked: false
+        });
+      });
+    });
+  });
+  state.menuItemsFlat = items;
+}
+
+function renderMenu() {
+  if (state.menuItemsFlat.length === 0) { document.getElementById('menuCard').style.display = 'none'; return; }
+  document.getElementById('menuCard').style.display = 'block';
+  // 按服务分组
+  var groups = {};
+  state.menuItemsFlat.forEach(function(item, idx) {
+    if (!groups[item.svcId]) groups[item.svcId] = { name: item.svcName, items: [] };
+    groups[item.svcId].items.push({ item: item, idx: idx });
+  });
+  var html = '';
+  Object.keys(groups).forEach(function(sid) {
+    var g = groups[sid];
+    html += '<div style="margin-bottom:16px;"><div class="section-title">' + g.name + ' · 可选内容</div>';
+    g.items.forEach(function(entry) {
+      var item = entry.item;
+      var idx = entry.idx;
+      var cls = 'service-option' + (item.checked ? ' active' : '');
+      html += '<div class="' + cls + '" style="margin-bottom:6px;" onclick="toggleMenuItem(' + idx + ')">';
+      html += '  <div class="option-left">';
+      html += '    <div class="check-box ' + (item.checked ? 'checked' : '') + '"><span style="color:#fff;font-size:14px;' + (item.checked ? '' : 'display:none;') + '">✓</span></div>';
+      if (item.image) html += '    <img src="' + item.image + '" style="width:48px;height:48px;object-fit:cover;border-radius:8px;">';
+      html += '    <div class="option-info"><span class="option-name">' + item.name + '</span>' + (item.desc ? '<span class="option-desc">' + item.desc + '</span>' : '') + '</div>';
+      html += '  </div>';
+      html += '  <div class="option-right" style="display:flex;align-items:center;gap:8px;">';
+      html += '    <span>¥' + item.price + (item.unit ? '/' + item.unit : '') + '</span>';
+      if (item.checked && item.mode === 'per_unit') {
+        html += '    <div class="stepper" style="margin-left:4px;" onclick="event.stopPropagation()">';
+        html += '      <button class="stepper-btn" onclick="changeMenuQty(' + idx + ',-1)">−</button>';
+        html += '      <input class="stepper-input" type="text" value="' + item.qty + '" style="width:36px;text-align:center;border:none;background:transparent;">';
+        html += '      <button class="stepper-btn" onclick="changeMenuQty(' + idx + ',1)">+</button>';
+        html += '    </div>';
+      }
+      html += '  </div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('menuContent').innerHTML = html;
+}
+
+function toggleMenuItem(idx) {
+  state.menuItemsFlat[idx].checked = !state.menuItemsFlat[idx].checked;
+  renderMenu();
+  calcPrice();
+}
+
+function changeMenuQty(idx, delta) {
+  var item = state.menuItemsFlat[idx];
+  item.qty = Math.max(1, Math.min(99, item.qty + delta));
+  renderMenu();
+  calcPrice();
+}
+
+// ============ 人数 ============
+function changePeople(delta) {
+  state.peopleCount = Math.max(1, Math.min(99, state.peopleCount + delta));
+  document.getElementById('peopleCount').value = state.peopleCount;
+  calcPrice();
+}
+
+// ============ 计价 ============
+function calcPrice() {
+  var selectedServices = state.selectedServices;
+  var peopleCount = state.peopleCount;
+  var menuItems = state.menuItemsFlat;
+  if (selectedServices.length === 0) { document.getElementById('priceDetail').innerHTML = ''; return; }
+
+  var rawTotal = 0;
+  var serviceNames = [];
+
+  selectedServices.forEach(function(sid) {
+    var svc = getServiceById(sid);
+    if (!svc) return;
+    serviceNames.push(svc.name);
+    if (sid === 'fishing') {
+      rawTotal += (svc.price || 30) * peopleCount;
+    } else {
+      var checkedItems = menuItems.filter(function(m) { return m.svcId === sid && m.checked; });
+      if (checkedItems.length > 0) {
+        var dishTotal = 0, otherTotal = 0;
+        checkedItems.forEach(function(item) {
+          if (item.mode === 'dish') dishTotal += item.price;
+          else if (item.mode === 'per_person') otherTotal += item.price * peopleCount;
+          else if (item.mode === 'per_unit') otherTotal += item.price * item.qty;
+        });
+        if (dishTotal > 0) {
+          var tables = Math.ceil(peopleCount / 10) || 1;
+          rawTotal += dishTotal * tables;
+        }
+        rawTotal += otherTotal;
+      }
+    }
+  });
+
+  // 折扣
+  var discount = calcDiscount(rawTotal, selectedServices);
+  var totalPrice = Math.max(0, rawTotal - discount.discountAmount);
+
+  var html = '<div style="padding-top:8px;">';
+  html += '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;color:#666;"><span>服务项目</span><span>' + serviceNames.join(' + ') + '</span></div>';
+  if (peopleCount > 0 && (selectedServices.indexOf('fishing') > -1 || selectedServices.indexOf('team') > -1)) {
+    html += '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;color:#666;"><span>人数</span><span>' + peopleCount + '人</span></div>';
+  }
+  if (discount.discountAmount > 0) {
+    html += '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;color:#52c41a;"><span>优惠（' + discount.discountLabel + '）</span><span>-¥' + discount.discountAmount + '</span></div>';
+  }
+  html += '<div style="display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid #f0f0f0;margin-top:6px;font-size:16px;font-weight:700;"><span>合计</span><span style="color:#ff6b6b;font-size:20px;">¥' + totalPrice + '</span></div>';
+  html += '</div>';
+  document.getElementById('priceDetail').innerHTML = html;
+}
+
+// ============ 提交 ============
+function onSubmit() {
+  if (!state.selectedDate) { alert('请选择日期'); return; }
+  if (state.selectedServices.length === 0) { alert('请选择服务'); return; }
+  var showFishing = state.selectedServices.indexOf('fishing') > -1 || state.selectedServices.indexOf('team') > -1;
+  if (showFishing && state.peopleCount < 1) { alert('请输入人数'); return; }
+  var hasNonFishing = state.selectedServices.some(function(sid) { return sid !== 'fishing'; });
+  var bookerName = document.getElementById('bookerName').value.trim();
+  if (hasNonFishing && !bookerName) { alert('请填写预约人姓名'); return; }
+  // 检查菜品
+  var needMenu = ['lunch', 'dinner', 'team'];
+  for (var i = 0; i < needMenu.length; i++) {
+    if (state.selectedServices.indexOf(needMenu[i]) > -1) {
+      var checked = state.menuItemsFlat.filter(function(m) { return m.svcId === needMenu[i] && m.checked; });
+      if (checked.length === 0) {
+        var svc = getServiceById(needMenu[i]);
+        alert((svc ? svc.name : '服务') + '请至少选择一项');
+        return;
+      }
+    }
+  }
+
+  var selectedMenu = state.menuItemsFlat.filter(function(m) { return m.checked; }).map(function(m) {
+    return { name: m.name, price: m.price, serviceId: m.svcId, mode: m.mode, unit: m.unit, qty: m.mode === 'per_unit' ? m.qty : undefined };
+  });
+
+  var booking = {
+    id: '',
+    date: state.selectedDate,
+    serviceIds: state.selectedServices,
+    serviceNames: state.selectedServices.map(function(sid) {
+      var s = getServiceById(sid); return s ? s.name : sid;
+    }),
+    peopleCount: state.peopleCount,
+    bookerName: bookerName,
+    selectedMenu: selectedMenu,
+    rawTotalPrice: 0,
+    discountAmount: 0,
+    discountLabel: '',
+    totalPrice: 0,
+    priceNote: '',
+    status: '待付款',
+    paid: false,
+    createTime: ''
+  };
+
+  // 重新计算价格
+  var rawTotal = 0;
+  state.selectedServices.forEach(function(sid) {
+    var svc = getServiceById(sid);
+    if (!svc) return;
+    if (sid === 'fishing') rawTotal += (svc.price || 30) * state.peopleCount;
+    else {
+      var checkedItems = state.menuItemsFlat.filter(function(m) { return m.svcId === sid && m.checked; });
+      var dishTotal = 0, otherTotal = 0;
+      checkedItems.forEach(function(item) {
+        if (item.mode === 'dish') dishTotal += item.price;
+        else if (item.mode === 'per_person') otherTotal += item.price * state.peopleCount;
+        else if (item.mode === 'per_unit') otherTotal += item.price * item.qty;
+      });
+      if (dishTotal > 0) { var tables = Math.ceil(state.peopleCount / 10) || 1; rawTotal += dishTotal * tables; }
+      rawTotal += otherTotal;
+    }
+  });
+  var discount = calcDiscount(rawTotal, state.selectedServices);
+  var totalPrice = Math.max(0, rawTotal - discount.discountAmount);
+
+  booking.rawTotalPrice = rawTotal;
+  booking.discountAmount = discount.discountAmount;
+  booking.discountLabel = discount.discountLabel;
+  booking.totalPrice = totalPrice;
+  booking.priceNote = totalPrice === 0 ? '价格面议' : '¥' + totalPrice;
+
+  addBooking(booking);
+  alert('预约成功！预约ID：' + booking.id);
+  location.href = 'index.html';
+}
+
+// ============ 图片预览 ============
+function previewImage(current, urls) {
+  // 简单实现：用 window.open 打开图片，或创建遮罩
+  var mask = document.createElement('div');
+  mask.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:999;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+  var img = document.createElement('img');
+  img.src = current;
+  img.style.cssText = 'max-width:95%;max-height:90%;object-fit:contain;border-radius:8px;';
+  mask.appendChild(img);
+  mask.onclick = function() { document.body.removeChild(mask); };
+  document.body.appendChild(mask);
+}
+
+init();
+</script>
+</body>
+</html>

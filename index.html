@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>农庄预约</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- 导航栏 -->
+<nav class="navbar">
+  <div class="nav-title">🏡 农庄预约</div>
+  <div class="nav-right">
+    <button class="nav-btn" onclick="location.href='admin.html'">后台管理</button>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+  <h1>农庄预约</h1>
+  <p>休闲垂钓 · 特色美食 · 团建娱乐</p>
+</div>
+
+<div class="container" id="serviceList">
+  <!-- 服务卡片由 JS 动态生成 -->
+</div>
+
+<!-- 底部预约按钮 + 分享按钮 -->
+<div style="padding:16px;" id="bookBtnWrap">
+  <button class="btn-primary" style="font-size:18px;padding:16px 0;width:calc(100% - 100px);" onclick="location.href='booking.html'">立即预约</button>
+  <button class="btn-secondary" style="font-size:15px;padding:16px 0;width:92px;margin-left:8px;" onclick="sharePage()">分享</button>
+</div>
+
+<!-- 分享弹窗 -->
+<div id="shareModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:90%;position:relative;">
+    <div style="font-size:17px;font-weight:700;margin-bottom:16px;">分享给朋友</div>
+    <div style="margin-bottom:12px;">
+      <div style="font-size:13px;color:#999;margin-bottom:6px;">复制链接发给朋友，打开即可预约</div>
+      <input id="shareUrlInput" type="text" style="width:100%;padding:10px 12px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;box-sizing:border-box;" readonly>
+    </div>
+    <button class="btn-primary" style="width:100%;margin-bottom:8px;" onclick="copyShareUrl()">复制链接</button>
+    <button class="btn-secondary" style="width:100%;" onclick="document.getElementById('shareModal').style.display='none'">取消</button>
+  </div>
+</div>
+
+<!-- 图片预览遮罩 -->
+<div class="img-preview-mask" id="imgPreviewMask" style="display:none;" onclick="closeImagePreview()">
+  <img id="imgPreviewImg" src="" alt="预览">
+</div>
+
+<script src="js/data.js"></script>
+<script>
+(function(){
+  const services = getServices();
+  const container = document.getElementById('serviceList');
+
+  // 处理服务数据：提取菜品图片
+  const processed = services.map(function(svc) {
+    const dishImages = [];
+    const allDishImgUrls = [];
+    if (svc.menuCategories && svc.menuCategories.length > 0) {
+      svc.menuCategories.forEach(function(cat) {
+        (cat.items || []).forEach(function(item) {
+          if (item.image) {
+            dishImages.push({ name: item.name, price: item.price, image: item.image });
+            allDishImgUrls.push(item.image);
+          }
+        });
+      });
+    }
+    return Object.assign({}, svc, {
+      _dishImages: dishImages,
+      _dishImgUrls: allDishImgUrls
+    });
+  });
+
+  // 渲染卡片
+  let html = '';
+  processed.forEach(function(svc) {
+    html += '<div class="card" onclick="goToBooking(\'' + svc.id + '\')">';
+
+    // 卡片头部
+    html += '<div class="card-left">';
+    html += '  <span class="card-icon">' + (svc.icon || '📌') + '</span>';
+    html += '  <div class="card-info">';
+    html += '    <span class="card-name">' + svc.name + '</span>';
+    html += '    <span class="card-desc">' + (svc.desc || '') + '</span>';
+    html += '  </div>';
+    html += '</div>';
+    html += '<span class="card-arrow">›</span>';
+
+    // 场地图片（服务图片）
+    if (svc.images && svc.images.length > 0) {
+      html += '<div class="card-img-section" onclick="event.stopPropagation()">';
+      html += '  <div class="img-section-title">场地图片</div>';
+      html += '  <div class="card-img-scroll">';
+      html += '    <div class="card-img-list">';
+      svc.images.forEach(function(imgUrl) {
+        const escaped = imgUrl.replace(/"/g, '&quot;');
+        html += '<img class="card-img" src="' + imgUrl + '" alt="场地图片" onclick="event.stopPropagation();previewImage(' + "'" + escaped + "'," + JSON.stringify(svc.images).replace(/"/g, '&quot;') + ')">';
+      });
+      html += '    </div>';
+      html += '  </div>';
+      html += '</div>';
+    }
+
+    // 菜品图片
+    if (svc._dishImages && svc._dishImages.length > 0) {
+      html += '<div class="card-dish-section" onclick="event.stopPropagation()">';
+      html += '  <div class="card-dish-label">推荐菜品</div>';
+      html += '  <div class="card-dish-scroll">';
+      html += '    <div class="card-dish-list">';
+      svc._dishImages.forEach(function(dish) {
+        const escapedUrl = dish.image.replace(/"/g, '&quot;');
+        const escapedName = (dish.name || '').replace(/"/g, '&quot;');
+        html += '<div class="card-dish-item">';
+        html += '  <img class="card-dish-img" src="' + dish.image + '" alt="' + escapedName + '" onclick="event.stopPropagation();previewImage(' + "'" + escapedUrl + "'," + JSON.stringify(svc._dishImgUrls).replace(/"/g, '&quot;') + ')">';
+        html += '  <span class="card-dish-name">' + (dish.name || '') + '</span>';
+        html += '  <span class="card-dish-price">¥' + (dish.price || 0) + '</span>';
+        html += '</div>';
+      });
+      html += '    </div>';
+      html += '  </div>';
+      html += '</div>';
+    }
+
+    html += '</div>'; // .card
+  });
+
+  container.innerHTML = html || '<p style="text-align:center;color:#999;padding:40px 0;">暂无服务，请在后台管理中添加</p>';
+})();
+
+function goToBooking(serviceId) {
+  localStorage.setItem('preSelectService', serviceId);
+  location.href = 'booking.html';
+}
+
+// 分享功能
+function sharePage() {
+  var baseUrl = location.origin + location.pathname.replace(/index\.html$/, '') + 'booking.html';
+  var services = getServices();
+  var ids = services.map(function(s) { return s.id; }).join(',');
+  var shareUrl = baseUrl + '?services=' + encodeURIComponent(ids) + '&share=1';
+  document.getElementById('shareUrlInput').value = shareUrl;
+  document.getElementById('shareModal').style.display = 'flex';
+}
+function copyShareUrl() {
+  var input = document.getElementById('shareUrlInput');
+  input.select();
+  document.execCommand('copy');
+  alert('链接已复制，发给朋友即可预约！');
+}
+
+function previewImage(current, urls) {
+  const mask = document.getElementById('imgPreviewMask');
+  const img = document.getElementById('imgPreviewImg');
+  img.src = current;
+  mask.style.display = 'flex';
+}
+function closeImagePreview() {
+  document.getElementById('imgPreviewMask').style.display = 'none';
+}
+</script>
+</body>
+</html>
