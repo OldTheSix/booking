@@ -487,8 +487,8 @@ function onSubmit() {
   booking.priceNote = totalPrice === 0 ? '价格面议' : '¥' + totalPrice;
 
   addBooking(booking);
-  alert('预约成功！预约ID：' + booking.id);
-  location.href = 'index.html';
+  alert('预约成功！请扫码付款');
+  location.href = 'payment.html?id=' + encodeURIComponent(booking.id);
 }
 
 // ============ 图片预览 ============
