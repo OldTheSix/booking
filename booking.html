@@ -44,13 +44,13 @@
     <div id="serviceOptions"></div>
   </div>
 
-  <!-- 场地图片（选了对应服务时显示） -->
+  <!-- 场地图片 -->
   <div class="calendar-card" id="fishingImgCard" style="display:none;">
     <div class="section-title" id="fishingImgTitle">场地图片</div>
     <div id="fishingImgList" style="display:flex;gap:10px;overflow-x:auto;padding:4px 0 8px 0;"></div>
   </div>
 
-  <!-- 菜单展示（非钓鱼服务） -->
+  <!-- 菜单展示 -->
   <div class="calendar-card" id="menuCard" style="display:none;">
     <div id="menuContent"></div>
   </div>
@@ -73,9 +73,7 @@
     <div id="priceDetail"></div>
   </div>
 
-  <!-- 提交 -->
   <button class="btn-primary" id="submitBtn" style="margin-top:8px;" onclick="onSubmit()">提交预约</button>
-  <!-- 分享按钮 -->
   <button class="btn-secondary" id="shareBtn" style="margin-top:8px;width:100%;display:none;" onclick="shareBooking()">分享此预约链接给朋友</button>
 </div>
 
@@ -99,25 +97,23 @@ var state = {
   month: new Date().getMonth() + 1,
   selectedDate: '',
   selectedServices: [],
-  selectedMenuItems: [],  // [{serviceId, itemIdx, name, price, mode, unit, qty}]
+  selectedMenuItems: [],
   peopleCount: 1,
   bookerName: '',
-  menuItemsFlat: [],   // 展平的所有可选菜品
-  isShared: false      // 是否来自分享链接
+  menuItemsFlat: [],
+  isShared: false
 };
 
 function init() {
   buildCalendar();
   renderServices();
 
-  // 解析 URL 参数（支持分享链接）
   var params = new URLSearchParams(location.search);
   var shareServices = params.get('services');
   var isShare = params.get('share') === '1';
 
   if (shareServices) {
     var ids = shareServices.split(',');
-    // 只保留有效的服务 ID
     var allSvcs = getServices();
     var validIds = ids.filter(function(id) {
       return allSvcs.some(function(s) { return s.id === id; });
@@ -127,7 +123,6 @@ function init() {
       state.isShared = isShare;
       renderServices();
       onServiceChange();
-      // 来自分享时提示
       if (isShare) {
         document.getElementById('shareBtn').style.display = 'block';
         var note = document.createElement('div');
@@ -138,7 +133,6 @@ function init() {
     }
   }
 
-  // 预选服务（兼容旧逻辑）
   if (state.selectedServices.length === 0) {
     var pre = localStorage.getItem('preSelectService');
     if (pre) {
@@ -151,7 +145,7 @@ function init() {
   calcPrice();
 }
 
-// 分享当前预约配置
+// 分享
 function shareBooking() {
   var base = location.origin + location.pathname;
   var params = '?services=' + encodeURIComponent(state.selectedServices.join(',')) + '&share=1';
@@ -244,8 +238,8 @@ function onServiceChange() {
   // 场地图片
   var fishingImgs = [];
   var fishingTitle = '';
-  state.selectedServices.forEach(function(sid) {
-    var svc = getServiceById(sid);
+  state.selectedServices.forEach(function(s) {
+    var svc = getServiceById(s);
     if (svc && svc.images && svc.images.length > 0) {
       fishingImgs = fishingImgs.concat(svc.images);
       if (!fishingTitle) fishingTitle = svc.name + ' · 场地图片';
@@ -276,7 +270,7 @@ function onServiceChange() {
   document.getElementById('peopleCount').value = state.peopleCount;
 
   // 预约人
-  var hasNonFishing = state.selectedServices.some(function(sid) { return sid !== 'fishing'; });
+  var hasNonFishing = state.selectedServices.some(function(s) { return s !== 'fishing'; });
   document.getElementById('bookerNameGroup').style.display = hasNonFishing ? 'block' : 'none';
 
   calcPrice();
@@ -286,14 +280,14 @@ function onServiceChange() {
 function buildMenuItems() {
   var allServices = getServices();
   var items = [];
-  state.selectedServices.forEach(function(sid) {
-    var svc = allServices.find(function(s) { return s.id === sid; });
+  state.selectedServices.forEach(function(svcId) {
+    var svc = allServices.find(function(s) { return s.id === svcId; });
     if (!svc || !svc.menuCategories) return;
     svc.menuCategories.forEach(function(cat, ci) {
       (cat.items || []).forEach(function(item, ii) {
         items.push({
           svcName: svc.name,
-          svcId: sid,
+          svcId: svcId,
           catName: cat.name,
           name: item.name,
           desc: item.desc,
@@ -313,7 +307,6 @@ function buildMenuItems() {
 function renderMenu() {
   if (state.menuItemsFlat.length === 0) { document.getElementById('menuCard').style.display = 'none'; return; }
   document.getElementById('menuCard').style.display = 'block';
-  // 按服务分组
   var groups = {};
   state.menuItemsFlat.forEach(function(item, idx) {
     if (!groups[item.svcId]) groups[item.svcId] = { name: item.svcName, items: [] };
@@ -380,14 +373,14 @@ function calcPrice() {
   var rawTotal = 0;
   var serviceNames = [];
 
-  selectedServices.forEach(function(sid) {
-    var svc = getServiceById(sid);
+  selectedServices.forEach(function(sId) {
+    var svc = getServiceById(sId);
     if (!svc) return;
     serviceNames.push(svc.name);
-    if (sid === 'fishing') {
+    if (sId === 'fishing') {
       rawTotal += (svc.price || 30) * peopleCount;
     } else {
-      var checkedItems = menuItems.filter(function(m) { return m.svcId === sid && m.checked; });
+      var checkedItems = menuItems.filter(function(m) { return m.svcId === sId && m.checked; });
       if (checkedItems.length > 0) {
         var dishTotal = 0, otherTotal = 0;
         checkedItems.forEach(function(item) {
@@ -404,7 +397,6 @@ function calcPrice() {
     }
   });
 
-  // 折扣
   var discount = calcDiscount(rawTotal, selectedServices);
   var totalPrice = Math.max(0, rawTotal - discount.discountAmount);
 
@@ -427,7 +419,7 @@ function onSubmit() {
   if (state.selectedServices.length === 0) { alert('请选择服务'); return; }
   var showFishing = state.selectedServices.indexOf('fishing') > -1 || state.selectedServices.indexOf('team') > -1;
   if (showFishing && state.peopleCount < 1) { alert('请输入人数'); return; }
-  var hasNonFishing = state.selectedServices.some(function(sid) { return sid !== 'fishing'; });
+  var hasNonFishing = state.selectedServices.some(function(s) { return s !== 'fishing'; });
   var bookerName = document.getElementById('bookerName').value.trim();
   if (hasNonFishing && !bookerName) { alert('请填写预约人姓名'); return; }
   // 检查菜品
@@ -451,8 +443,8 @@ function onSubmit() {
     id: '',
     date: state.selectedDate,
     serviceIds: state.selectedServices,
-    serviceNames: state.selectedServices.map(function(sid) {
-      var s = getServiceById(sid); return s ? s.name : sid;
+    serviceNames: state.selectedServices.map(function(sId) {
+      var s = getServiceById(sId); return s ? s.name : sId;
     }),
     peopleCount: state.peopleCount,
     bookerName: bookerName,
@@ -469,12 +461,12 @@ function onSubmit() {
 
   // 重新计算价格
   var rawTotal = 0;
-  state.selectedServices.forEach(function(sid) {
-    var svc = getServiceById(sid);
+  state.selectedServices.forEach(function(sId) {
+    var svc = getServiceById(sId);
     if (!svc) return;
-    if (sid === 'fishing') rawTotal += (svc.price || 30) * state.peopleCount;
+    if (sId === 'fishing') rawTotal += (svc.price || 30) * state.peopleCount;
     else {
-      var checkedItems = state.menuItemsFlat.filter(function(m) { return m.svcId === sid && m.checked; });
+      var checkedItems = state.menuItemsFlat.filter(function(m) { return m.svcId === sId && m.checked; });
       var dishTotal = 0, otherTotal = 0;
       checkedItems.forEach(function(item) {
         if (item.mode === 'dish') dishTotal += item.price;
@@ -501,7 +493,6 @@ function onSubmit() {
 
 // ============ 图片预览 ============
 function previewImage(current, urls) {
-  // 简单实现：用 window.open 打开图片，或创建遮罩
   var mask = document.createElement('div');
   mask.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:999;display:flex;align-items:center;justify-content:center;cursor:pointer;';
   var img = document.createElement('img');
@@ -512,7 +503,7 @@ function previewImage(current, urls) {
   document.body.appendChild(mask);
 }
 
-init();
+loadFromCloud(function() { init(); });
 </script>
 </body>
 </html>
