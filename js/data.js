@@ -1,7 +1,7 @@
 /**
  * booking-web 数据存储层
  * 此文件由后台导出，请勿手动修改
- * 导出时间：2026/6/9 19:00:00
+ * 导出时间：2026/6/9 20:40:00
  */
 
 const STORAGE_KEYS = {
@@ -12,84 +12,100 @@ const STORAGE_KEYS = {
   NEW_BOOKING_COUNT: 'booking_new_count'
 };
 
-// ============ 默认服务数据（由后台导出） ============
+// ============ 占位图片生成 ============
+function getPlaceholderImage(name, width, height) {
+  const colors = ['4CAF50', '2196F3', 'FF9800', '9C27B0', 'F44336', '009688'];
+  const hash = name.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+  const color = colors[hash % colors.length];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect fill="#${color}" width="${width}" height="${height}"/><text x="50%" y="50%" font-size="${Math.min(width, height) / 6}" fill="white" text-anchor="middle" dy=".3em" font-family="sans-serif">${name}</text></svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+// ============ 默认服务数据 ============
 function getDefaultServices() {
+  const lunchItems = [
+    { name: "土鸡", desc: "健过身的", price: 138, mode: "dish", unit: "", image: "" },
+    { name: "腊肉", desc: "下饭腊肉", price: 46, mode: "dish", unit: "", image: "" },
+    { name: "回锅肉", desc: "阿姨炒的回锅肉", price: 38, mode: "dish", unit: "", image: "" },
+    { name: "木瓜浸鸡", desc: "补", price: 168, mode: "dish", unit: "", image: "" },
+    { name: "中药药膳鸡", desc: "大补", price: 188, mode: "dish", unit: "", image: "" },
+    { name: "辣炒鸡肉", desc: "一只", price: 148, mode: "dish", unit: "", image: "" },
+    { name: "辣炒鸡肉半只/汤半只", desc: "半只炒半只汤", price: 148, mode: "dish", unit: "", image: "" },
+    { name: "空心菜", desc: "阿姨自己种的", price: 26, mode: "dish", unit: "", image: "" },
+    { name: "豆角", desc: "阿姨自己种的", price: 26, mode: "dish", unit: "", image: "" },
+    { name: "番薯叶", desc: "阿姨自己种的", price: 26, mode: "dish", unit: "", image: "" },
+    { name: "鸡蛋汤", desc: "土鸡生的", price: 28, mode: "dish", unit: "", image: "" },
+    { name: "米饭一锅", desc: "", price: 10, mode: "dish", unit: "", image: "" }
+  ];
+
+  // 动态生成图片（在页面加载时调用 getPlaceholderImage）
+  lunchItems.forEach(item => {
+    item._name = item.name;
+  });
+
   return [
-  {
-    "id": "fishing",
-    "name": "休闲钓鱼",
-    "icon": "🎣",
-    "desc": "水库垂钓，支持自带渔具",
-    "price": 30,
-    "unit": "人",
-    "images": [],
-    "menuCategories": []
-  },
-  {
-    "id": "lunch",
-    "name": "午餐",
-    "icon": "🍱",
-    "desc": "特色农家菜，新鲜食材",
-    "price": 0,
-    "unit": "桌",
-    "images": [],
-    "menuCategories": [
-      {
-        "name": "健身土鸡",
-        "items": [
-          {"name": "土鸡", "desc": "健过身的", "price": 138, "mode": "dish", "unit": "", "image": ""},
-          {"name": "腊肉", "desc": "下饭腊肉", "price": 46, "mode": "dish", "unit": "", "image": ""},
-          {"name": "回锅肉", "desc": "阿姨炒的回锅肉", "price": 38, "mode": "dish", "unit": "", "image": ""},
-          {"name": "木瓜浸鸡", "desc": "补", "price": 168, "mode": "dish", "unit": "", "image": ""},
-          {"name": "中药药膳鸡", "desc": "大补", "price": 188, "mode": "dish", "unit": "", "image": ""},
-          {"name": "辣炒鸡肉", "desc": "一只", "price": 148, "mode": "dish", "unit": "", "image": ""},
-          {"name": "辣炒鸡肉半只/汤半只", "desc": "半只炒半只汤", "price": 148, "mode": "dish", "unit": "", "image": ""},
-          {"name": "空心菜", "desc": "阿姨自己种的", "price": 26, "mode": "dish", "unit": "", "image": ""},
-          {"name": "豆角", "desc": "阿姨自己种的", "price": 26, "mode": "dish", "unit": "", "image": ""},
-          {"name": "番薯叶", "desc": "阿姨自己种的", "price": 26, "mode": "dish", "unit": "", "image": ""},
-          {"name": "鸡蛋汤", "desc": "土鸡生的", "price": 28, "mode": "dish", "unit": "", "image": ""},
-          {"name": "米饭一锅", "desc": "", "price": 10, "mode": "dish", "unit": "", "image": ""}
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dinner",
-    "name": "晚餐",
-    "icon": "🍲",
-    "desc": "烧烤+火锅，夜宵好去处",
-    "price": 0,
-    "unit": "桌",
-    "images": [],
-    "menuCategories": [
-      {
-        "name": "晚",
-        "items": [
-          {"name": "烧烤", "desc": "特色烧烤", "price": 30, "mode": "per_person", "unit": "人", "image": ""},
-          {"name": "火锅", "desc": "鸳鸯锅", "price": 50, "mode": "per_person", "unit": "人", "image": ""}
-        ]
-      }
-    ]
-  },
-  {
-    "id": "group",
-    "name": "团建娱乐",
-    "icon": "🎉",
-    "desc": "团建、聚会、娱乐一站式",
-    "price": 0,
-    "unit": "项",
-    "images": [],
-    "menuCategories": [
-      {
-        "name": "娱乐项目",
-        "items": [
-          {"name": "KTV", "desc": "专业KTV设备", "price": 200, "mode": "per_unit", "unit": "场", "image": ""},
-          {"name": "麻将", "desc": "自动麻将桌", "price": 100, "mode": "per_unit", "unit": "桌", "image": ""}
-        ]
-      }
-    ]
-  }
-];
+    {
+      id: "fishing",
+      name: "休闲钓鱼",
+      icon: "🎣",
+      desc: "水库垂钓，支持自带渔具",
+      price: 30,
+      unit: "人",
+      images: [],
+      menuCategories: []
+    },
+    {
+      id: "lunch",
+      name: "午餐",
+      icon: "🍱",
+      desc: "特色农家菜，新鲜食材",
+      price: 0,
+      unit: "桌",
+      images: [],
+      menuCategories: [
+        {
+          name: "健身土鸡",
+          items: lunchItems
+        }
+      ]
+    },
+    {
+      id: "dinner",
+      name: "晚餐",
+      icon: "🍲",
+      desc: "烧烤+火锅，夜宵好去处",
+      price: 0,
+      unit: "桌",
+      images: [],
+      menuCategories: [
+        {
+          name: "晚",
+          items: [
+            { name: "烧烤", desc: "特色烧烤", price: 30, mode: "per_person", unit: "人", image: "" },
+            { name: "火锅", desc: "鸳鸯锅", price: 50, mode: "per_person", unit: "人", image: "" }
+          ]
+        }
+      ]
+    },
+    {
+      id: "group",
+      name: "团建娱乐",
+      icon: "🎉",
+      desc: "团建、聚会、娱乐一站式",
+      price: 0,
+      unit: "项",
+      images: [],
+      menuCategories: [
+        {
+          name: "娱乐项目",
+          items: [
+            { name: "KTV", desc: "专业KTV设备", price: 200, mode: "per_unit", unit: "场", image: "" },
+            { name: "麻将", desc: "自动麻将桌", price: 100, mode: "per_unit", unit: "桌", image: "" }
+          ]
+        }
+      ]
+    }
+  ];
 }
 
 function getDefaultDiscountRules() {
@@ -274,4 +290,21 @@ function loadFromCloud(callback) {
       if (typeof callback === 'function') callback(false);
     }
   });
+}
+
+// ============ 图片占位符（在页面加载时调用）============
+function initPlaceholderImages() {
+  const services = getServices();
+  services.forEach(function(svc) {
+    if (svc.menuCategories) {
+      svc.menuCategories.forEach(function(cat) {
+        (cat.items || []).forEach(function(item) {
+          if (!item.image || item.image === '') {
+            item.image = getPlaceholderImage(item.name, 200, 200);
+          }
+        });
+      });
+    }
+  });
+  saveServices(services);
 }
