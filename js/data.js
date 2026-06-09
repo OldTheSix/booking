@@ -294,7 +294,16 @@ function getDefaultServices() {
 
 // ============ 默认折扣规则（由后台导出） ============
 function getDefaultDiscountRules() {
-  return [];
+  return [
+    {
+      id: 'discount_95',
+      name: '全场95折',
+      percent: 95,
+      minAmount: 0,
+      applyTo: 'all',
+      enabled: true
+    }
+  ];
 }
 
 // ============ 服务管理 ============
