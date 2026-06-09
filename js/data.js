@@ -398,6 +398,58 @@ function calcDiscount(rawTotal, selectedServiceIds) {
   return { discountAmount: 0, discountLabel: '' };
 }
 
+// ============ 云同步 ============
+const CLOUD_BLOB_ID = '019eaab5-09e0-7bef-8984-bea37614f8be';
+
+function cloudWrite(data, callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('PUT', 'https://jsonblob.com/api/jsonBlob/' + CLOUD_BLOB_ID, true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('Accept', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      if (xhr.status >= 200 && xhr.status < 300) callback(null);
+      else callback(new Error('HTTP ' + xhr.status));
+    }
+  };
+  xhr.onerror = function() { callback(new Error('Network error')); };
+  xhr.send(JSON.stringify(data));
+}
+
+function cloudRead(callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'https://jsonblob.com/api/jsonBlob/' + CLOUD_BLOB_ID, true);
+  xhr.setRequestHeader('Accept', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { callback(null, JSON.parse(xhr.responseText)); }
+        catch (e) { callback(e); }
+      } else {
+        callback(new Error('HTTP ' + xhr.status));
+      }
+    }
+  };
+  xhr.onerror = function() { callback(new Error('Network error')); };
+  xhr.send();
+}
+
+function loadFromCloud(callback) {
+  cloudRead(function(err, data) {
+    if (err || !data || !data.services) {
+      if (typeof callback === 'function') callback(false);
+      return;
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(data.services));
+      if (data.discounts) localStorage.setItem(STORAGE_KEYS.DISCOUNT_RULES, JSON.stringify(data.discounts));
+      if (typeof callback === 'function') callback(true);
+    } catch (e) {
+      if (typeof callback === 'function') callback(false);
+    }
+  });
+}
+
 function compressImage(file, maxWidth, quality) {
   maxWidth = maxWidth || 800;
   quality = quality || 0.6;
