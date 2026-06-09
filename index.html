@@ -52,8 +52,14 @@
 
 <script src="js/data.js"></script>
 <script>
-(function(){
-  const services = getServices();
+// 首次加载自动从云端拉取最新数据
+loadFromCloud(function(ok) {
+  if (ok) renderPage();
+  else renderPage();
+});
+
+function renderPage() {
+  var services = getServices();
   const container = document.getElementById('serviceList');
 
   // 处理服务数据：提取菜品图片
@@ -130,7 +136,7 @@
   });
 
   container.innerHTML = html || '<p style="text-align:center;color:#999;padding:40px 0;">暂无服务，请在后台管理中添加</p>';
-})();
+}
 
 function goToBooking(serviceId) {
   localStorage.setItem('preSelectService', serviceId);
