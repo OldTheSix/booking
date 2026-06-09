@@ -437,6 +437,11 @@ function cloudRead(callback) {
 function loadFromCloud(callback) {
   cloudRead(function(err, data) {
     if (err || !data || !data.services) {
+      // 云端拉取失败，清除旧 localStorage，用 data.js 默认数据
+      try {
+        localStorage.removeItem(STORAGE_KEYS.SERVICES);
+        localStorage.removeItem(STORAGE_KEYS.DISCOUNT_RULES);
+      } catch(e) {}
       if (typeof callback === 'function') callback(false);
       return;
     }
