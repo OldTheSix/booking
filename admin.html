@@ -9,8 +9,9 @@
   var pwd = prompt('请输入管理密码：');
   if (pwd !== '5233420') {
     alert('密码错误！');
-    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-size:18px;color:#999;">访问被拒绝</div>';
-    throw new Error('access denied');
+    document.write('<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-size:18px;color:#999;">访问被拒绝</div>');
+    document.close();
+    window.stop();
   }
 })();
 </script>
