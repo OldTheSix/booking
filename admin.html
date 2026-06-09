@@ -47,7 +47,15 @@
 
   <!-- 服务管理 -->
   <div id="services-tab">
-    <button class="btn-primary" style="margin-bottom:16px;" onclick="openServiceModal()">＋ 添加服务</button>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <button class="btn-primary" onclick="openServiceModal()">＋ 添加服务</button>
+      <button class="btn-outline" onclick="manualCloudSync()" style="background:#e6f7ff;color:#1890ff;border-color:#91d5ff;">☁️ 同步到云端</button>
+      <button class="btn-outline" onclick="exportDataJs()" style="background:#fff7e6;color:#fa8c16;border-color:#ffd591;">📤 导出数据（备用）</button>
+    </div>
+    <div style="background:#e6f7ff;border:1px solid #91d5ff;border-radius:8px;padding:10px 14px;font-size:12px;color:#0050b3;margin-bottom:12px;">
+      ☁️ <b>自动云同步已开启</b>：保存服务/折扣时自动同步到云端，朋友打开页面自动读取最新数据<br>
+      如同步失败，可点"同步到云端"手动推送
+    </div>
     <div id="adminServiceList"></div>
   </div>
 
@@ -544,9 +552,183 @@ function showMobileMenu() {
   }
 })();
 
+// ============ 导出 data.js（同步到网站） ============
+function exportDataJs() {
+  var services = getServices();
+  var discountRules = getDiscountRules();
+
+  // 生成 data.js 内容
+  var content = '/**\n * booking-web 数据存储层\n * 此文件由后台管理导出，请勿手动修改\n * 导出时间：' + new Date().toLocaleString('zh-CN') + '\n */\n\n';
+  content += 'const STORAGE_KEYS = {\n  SERVICES: \'booking_services\',\n  BOOKINGS: \'booking_bookings\',\n  DISCOUNT_RULES: \'booking_discount_rules\',\n  SHARE_RECORDS: \'booking_share_records\',\n  NEW_BOOKING_COUNT: \'booking_new_count\'\n};\n\n';
+
+  // 嵌入导出的服务数据作为默认值
+  content += '// ============ 默认服务数据（由后台导出） ============\n';
+  content += 'function getDefaultServices() {\n  return ' + JSON.stringify(services, null, 2) + ';\n}\n\n';
+
+  // 嵌入折扣规则
+  content += '// ============ 默认折扣规则（由后台导出） ============\n';
+  content += 'function getDefaultDiscountRules() {\n  return ' + JSON.stringify(discountRules, null, 2) + ';\n}\n\n';
+
+  // 其余函数保持不变（完整的 data.js 其余部分）
+  content += `// ============ 服务管理 ============
+function getServices() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SERVICES);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  const defaults = getDefaultServices();
+  localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(defaults));
+  return defaults;
+}
+
+function saveServices(services) {
+  localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(services));
+}
+
+function getServiceById(id) {
+  return getServices().find(function(s) { return s.id === id; });
+}
+
+// ============ 预约管理 ============
+function getBookings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+
+function saveBookings(bookings) {
+  localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(bookings));
+}
+
+function addBooking(booking) {
+  const bookings = getBookings();
+  booking.id = 'BK' + Date.now();
+  booking.createTime = new Date().toISOString();
+  bookings.unshift(booking);
+  saveBookings(bookings);
+  const count = parseInt(localStorage.getItem(STORAGE_KEYS.NEW_BOOKING_COUNT) || '0') + 1;
+  localStorage.setItem(STORAGE_KEYS.NEW_BOOKING_COUNT, count);
+  return booking;
+}
+
+function updateBookingStatus(id, status) {
+  const bookings = getBookings();
+  const b = bookings.find(function(x) { return x.id === id; });
+  if (b) b.status = status;
+  saveBookings(bookings);
+}
+
+function deleteBooking(id) {
+  let bookings = getBookings();
+  bookings = bookings.filter(function(x) { return x.id !== id; });
+  saveBookings(bookings);
+}
+
+// ============ 折扣规则 ============
+function getDiscountRules() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.DISCOUNT_RULES);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  const defaults = getDefaultDiscountRules();
+  if (defaults.length > 0) localStorage.setItem(STORAGE_KEYS.DISCOUNT_RULES, JSON.stringify(defaults));
+  return defaults;
+}
+
+function saveDiscountRules(rules) {
+  localStorage.setItem(STORAGE_KEYS.DISCOUNT_RULES, JSON.stringify(rules));
+}
+
+// ============ 工具函数 ============
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function formatDateTime(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+function calcDiscount(rawTotal, selectedServiceIds) {
+  const rules = getDiscountRules().filter(function(r) { return r.enabled !== false; });
+  let bestRule = null;
+  rules.forEach(function(r) {
+    if (r.minAmount > 0 && rawTotal < r.minAmount) return;
+    const applyMatch = !r.applyTo || r.applyTo === 'all' || selectedServiceIds.indexOf(r.applyTo) > -1;
+    if (!applyMatch) return;
+    if (!bestRule || r.percent < bestRule.percent) bestRule = r;
+  });
+  if (bestRule && bestRule.percent < 100) {
+    return {
+      discountAmount: Math.round(rawTotal * (1 - bestRule.percent / 100)),
+      discountLabel: (bestRule.percent / 10) + '折'
+    };
+  }
+  return { discountAmount: 0, discountLabel: '' };
+}
+
+function compressImage(file, maxWidth, quality) {
+  maxWidth = maxWidth || 800;
+  quality = quality || 0.6;
+  return new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+`;
+
+  // 触发下载
+  var blob = new Blob([content], { type: 'text/javascript;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'data.js';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  alert('✅ data.js 已下载！\n\n接下来：\n1. 打开 GitHub → booking仓库 → js/data.js\n2. 点铅笔图标编辑\n3. 全选删除，粘贴下载的 data.js 内容\n4. Commit changes\n\n完成后朋友刷新页面就能看到最新内容！');
+}
+
+// ============ 手动云同步 ============
+function manualCloudSync() {
+  var services = getServices();
+  var discounts = getDiscountRules();
+  var data = { services: services, discounts: discounts };
+  cloudWrite(data, function(err) {
+    if (err) {
+      alert('❌ 同步失败：' + err.message + '\n请检查网络后重试');
+    } else {
+      alert('✅ 云端同步成功！\n朋友刷新页面即可看到最新内容');
+    }
+  });
+}
+
 // ============ 初始化 ============
-refreshDiscountServiceOptions();
-renderAdminServices();
+// 后台打开时也从云端拉一下最新数据
+loadFromCloud(function() {
+  refreshDiscountServiceOptions();
+  renderAdminServices();
+});
 </script>
 </body>
 </html>
