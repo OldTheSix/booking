@@ -1,7 +1,7 @@
 /**
  * booking-web 数据存储层
- * 使用 localStorage 持久化，兼容无后端场景
- * 结构与原微信小程序保持一致
+ * 使用 JSONBlob 云端存储 + localStorage 缓存
+ * 后台修改自动同步到云端，朋友打开自动读取最新数据
  */
 
 const STORAGE_KEYS = {
@@ -9,8 +9,13 @@ const STORAGE_KEYS = {
   BOOKINGS: 'booking_bookings',
   DISCOUNT_RULES: 'booking_discount_rules',
   SHARE_RECORDS: 'booking_share_records',
-  NEW_BOOKING_COUNT: 'booking_new_count'
+  NEW_BOOKING_COUNT: 'booking_new_count',
+  CLOUD_SYNC_TIME: 'booking_cloud_sync_time'
 };
+
+// ============ 云端配置 ============
+var CLOUD_BLOB_ID = '019eaab5-09e0-7bef-8984-bea37614f8be';
+var CLOUD_API_URL = 'https://jsonblob.com/api/jsonBlob/' + CLOUD_BLOB_ID;
 
 // ============ 默认服务数据 ============
 function getDefaultServices() {
@@ -35,11 +40,20 @@ function getDefaultServices() {
       images: [],
       menuCategories: [
         {
-          name: '特色菜',
+          name: '健身土鸡',
           items: [
-            { name: '红烧鲤鱼', desc: '水库鲜活鲤鱼', price: 88, image: '', mode: 'dish' },
-            { name: '农家小炒肉', desc: '本地猪肉', price: 48, image: '', mode: 'dish' },
-            { name: '清炒时蔬', desc: '当日新鲜蔬菜', price: 28, image: '', mode: 'dish' }
+            { name: '土鸡', desc: '健过身的', price: 138, image: '', mode: 'dish' },
+            { name: '腊肉', desc: '下饭腊肉', price: 46, image: '', mode: 'dish' },
+            { name: '回锅肉', desc: '阿姨炒的回锅肉', price: 38, image: '', mode: 'dish' },
+            { name: '木瓜浸鸡', desc: '补', price: 168, image: '', mode: 'dish' },
+            { name: '中药药膳鸡', desc: '大补', price: 188, image: '', mode: 'dish' },
+            { name: '辣炒鸡肉', desc: '一只', price: 148, image: '', mode: 'dish' },
+            { name: '辣炒鸡肉半', desc: '半只炒半只', price: 0, image: '', mode: 'dish' },
+            { name: '空心菜', desc: '阿姨自己种的', price: 0, image: '', mode: 'dish' },
+            { name: '豆角', desc: '阿姨自己种的', price: 0, image: '', mode: 'dish' },
+            { name: '番薯叶', desc: '阿姨自己种的', price: 0, image: '', mode: 'dish' },
+            { name: '鸡蛋汤', desc: '土鸡生的', price: 0, image: '', mode: 'dish' },
+            { name: '米饭一锅', desc: '', price: 10, image: '', mode: 'dish' }
           ]
         }
       ]
@@ -54,11 +68,20 @@ function getDefaultServices() {
       images: [],
       menuCategories: [
         {
-          name: '烧烤',
+          name: '晚',
           items: [
-            { name: '烤全鱼', desc: '水库鱼现烤', price: 68, image: '', mode: 'dish' },
-            { name: '烤羊肉串', desc: '新鲜羊肉', price: 8, image: '', mode: 'per_unit', unit: '串' },
-            { name: '烤玉米', desc: '甜玉米', price: 5, image: '', mode: 'per_unit', unit: '根' }
+            { name: '土鸡', desc: '', price: 138, image: '', mode: 'dish' },
+            { name: '腊肉', desc: '', price: 46, image: '', mode: 'dish' },
+            { name: '回锅肉', desc: '', price: 38, image: '', mode: 'dish' },
+            { name: '木瓜鸡', desc: '', price: 168, image: '', mode: 'dish' },
+            { name: '药膳鸡', desc: '', price: 188, image: '', mode: 'dish' },
+            { name: '辣椒炒鸡', desc: '', price: 148, image: '', mode: 'dish' },
+            { name: '半只炒鸡半', desc: '', price: 148, image: '', mode: 'dish' },
+            { name: '空心菜', desc: '', price: 26, image: '', mode: 'dish' },
+            { name: '豆角', desc: '', price: 26, image: '', mode: 'dish' },
+            { name: '番薯叶', desc: '', price: 26, image: '', mode: 'dish' },
+            { name: '鸡蛋汤', desc: '', price: 28, image: '', mode: 'dish' },
+            { name: '米饭一锅', desc: '', price: 10, image: '', mode: 'dish' }
           ]
         }
       ]
@@ -75,8 +98,7 @@ function getDefaultServices() {
         {
           name: '娱乐项目',
           items: [
-            { name: 'KTV包厢', desc: '专业音响设备', price: 200, image: '', mode: 'per_unit', unit: '小时' },
-            { name: '麻将房', desc: '自动麻将机', price: 50, image: '', mode: 'per_unit', unit: '小时' },
+            { name: '娱乐麻将', desc: '16/小时', price: 16, image: '', mode: 'per_unit', unit: '小时' },
             { name: '品茶区', desc: '安静品茶聊天', price: 30, image: '', mode: 'per_person' }
           ]
         }
@@ -85,20 +107,62 @@ function getDefaultServices() {
   ];
 }
 
+// ============ 云端读写 ============
+function cloudRead(callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', CLOUD_API_URL, true);
+  xhr.setRequestHeader('Accept', 'application/json');
+  xhr.timeout = 8000;
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        callback(null, data);
+      } catch (e) {
+        callback(e, null);
+      }
+    } else {
+      callback(new Error('HTTP ' + xhr.status), null);
+    }
+  };
+  xhr.onerror = function() { callback(new Error('network error'), null); };
+  xhr.ontimeout = function() { callback(new Error('timeout'), null); };
+  xhr.send();
+}
+
+function cloudWrite(data, callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('PUT', CLOUD_API_URL, true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.timeout = 10000;
+  xhr.onload = function() {
+    if (xhr.status === 200 || xhr.status === 201) {
+      localStorage.setItem(STORAGE_KEYS.CLOUD_SYNC_TIME, new Date().toISOString());
+      callback(null);
+    } else {
+      callback(new Error('HTTP ' + xhr.status));
+    }
+  };
+  xhr.onerror = function() { callback(new Error('network error')); };
+  xhr.ontimeout = function() { callback(new Error('timeout')); };
+  xhr.send(JSON.stringify(data));
+}
+
 // ============ 服务管理 ============
 function getServices() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.SERVICES);
+    var raw = localStorage.getItem(STORAGE_KEYS.SERVICES);
     if (raw) return JSON.parse(raw);
   } catch (e) {}
-  // 首次使用，写入默认数据
-  const defaults = getDefaultServices();
+  var defaults = getDefaultServices();
   localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(defaults));
   return defaults;
 }
 
 function saveServices(services) {
   localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(services));
+  // 自动同步到云端
+  syncToCloud('services', services);
 }
 
 function getServiceById(id) {
@@ -108,7 +172,7 @@ function getServiceById(id) {
 // ============ 预约管理 ============
 function getBookings() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
+    var raw = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
     return raw ? JSON.parse(raw) : [];
   } catch (e) { return []; }
 }
@@ -118,26 +182,25 @@ function saveBookings(bookings) {
 }
 
 function addBooking(booking) {
-  const bookings = getBookings();
+  var bookings = getBookings();
   booking.id = 'BK' + Date.now();
   booking.createTime = new Date().toISOString();
   bookings.unshift(booking);
   saveBookings(bookings);
-  // 新预约计数
-  const count = parseInt(localStorage.getItem(STORAGE_KEYS.NEW_BOOKING_COUNT) || '0') + 1;
+  var count = parseInt(localStorage.getItem(STORAGE_KEYS.NEW_BOOKING_COUNT) || '0') + 1;
   localStorage.setItem(STORAGE_KEYS.NEW_BOOKING_COUNT, count);
   return booking;
 }
 
 function updateBookingStatus(id, status) {
-  const bookings = getBookings();
-  const b = bookings.find(function(x) { return x.id === id; });
+  var bookings = getBookings();
+  var b = bookings.find(function(x) { return x.id === id; });
   if (b) b.status = status;
   saveBookings(bookings);
 }
 
 function deleteBooking(id) {
-  let bookings = getBookings();
+  var bookings = getBookings();
   bookings = bookings.filter(function(x) { return x.id !== id; });
   saveBookings(bookings);
 }
@@ -145,39 +208,80 @@ function deleteBooking(id) {
 // ============ 折扣规则 ============
 function getDiscountRules() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.DISCOUNT_RULES);
+    var raw = localStorage.getItem(STORAGE_KEYS.DISCOUNT_RULES);
     return raw ? JSON.parse(raw) : [];
   } catch (e) { return []; }
 }
 
 function saveDiscountRules(rules) {
   localStorage.setItem(STORAGE_KEYS.DISCOUNT_RULES, JSON.stringify(rules));
+  // 自动同步到云端
+  syncToCloud('discounts', rules);
+}
+
+// ============ 云端同步 ============
+// 后台保存时 → 推送到云端
+function syncToCloud(key, data) {
+  // 先读云端当前数据，再合并
+  cloudRead(function(err, cloudData) {
+    if (err) {
+      console.warn('云端读取失败，跳过同步:', err.message);
+      return;
+    }
+    if (!cloudData) cloudData = {};
+    cloudData[key] = data;
+    cloudWrite(cloudData, function(err2) {
+      if (err2) {
+        console.warn('云端写入失败:', err2.message);
+      } else {
+        console.log('✅ 云端同步成功:', key);
+      }
+    });
+  });
+}
+
+// 朋友打开时 → 从云端拉取最新数据
+function loadFromCloud(callback) {
+  cloudRead(function(err, cloudData) {
+    if (err || !cloudData) {
+      console.warn('云端加载失败，使用本地数据');
+      if (callback) callback(false);
+      return;
+    }
+    // 用云端数据更新本地
+    if (cloudData.services && cloudData.services.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(cloudData.services));
+    }
+    if (cloudData.discounts) {
+      localStorage.setItem(STORAGE_KEYS.DISCOUNT_RULES, JSON.stringify(cloudData.discounts));
+    }
+    localStorage.setItem(STORAGE_KEYS.CLOUD_SYNC_TIME, new Date().toISOString());
+    console.log('✅ 云端数据已同步到本地');
+    if (callback) callback(true);
+  });
 }
 
 // ============ 工具函数 ============
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
+  var d = new Date(dateStr);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
 function formatDateTime(isoStr) {
   if (!isoStr) return '';
-  const d = new Date(isoStr);
+  var d = new Date(isoStr);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 }
 
-// 计算折扣
 function calcDiscount(rawTotal, selectedServiceIds) {
-  const rules = getDiscountRules().filter(function(r) { return r.enabled !== false; });
-  let bestRule = null;
+  var rules = getDiscountRules().filter(function(r) { return r.enabled !== false; });
+  var bestRule = null;
   rules.forEach(function(r) {
     if (r.minAmount > 0 && rawTotal < r.minAmount) return;
-    const applyMatch = !r.applyTo || r.applyTo === 'all' || selectedServiceIds.indexOf(r.applyTo) > -1;
+    var applyMatch = !r.applyTo || r.applyTo === 'all' || selectedServiceIds.indexOf(r.applyTo) > -1;
     if (!applyMatch) return;
-    if (!bestRule || r.percent < bestRule.percent) {
-      bestRule = r;
-    }
+    if (!bestRule || r.percent < bestRule.percent) bestRule = r;
   });
   if (bestRule && bestRule.percent < 100) {
     return {
@@ -188,26 +292,19 @@ function calcDiscount(rawTotal, selectedServiceIds) {
   return { discountAmount: 0, discountLabel: '' };
 }
 
-// 图片转 base64（压缩）
 function compressImage(file, maxWidth, quality) {
   maxWidth = maxWidth || 800;
   quality = quality || 0.6;
   return new Promise(function(resolve, reject) {
-    const reader = new FileReader();
+    var reader = new FileReader();
     reader.onload = function(e) {
-      const img = new Image();
+      var img = new Image();
       img.onload = function() {
-        const canvas = document.createElement('canvas');
-        let w = img.width;
-        let h = img.height;
-        if (w > maxWidth) {
-          h = Math.round(h * maxWidth / w);
-          w = maxWidth;
-        }
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
+        var canvas = document.createElement('canvas');
+        var w = img.width, h = img.height;
+        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         resolve(canvas.toDataURL('image/jpeg', quality));
       };
       img.onerror = reject;
